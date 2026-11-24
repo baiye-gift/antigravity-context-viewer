@@ -1,0 +1,21 @@
+{
+  "name": "context-viewer",
+  "displayName": "Context Viewer",
+  "version": "1.0.0",
+  "description": "原生无侵入上下文窗口、5小时额度与周额度遥测挂件（Telemetry Pod HUD + 侧边栏看板），免修改 app.asar。",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "baiye-gift",
+    "url": "https://github.com/baiye-gift"
+  },
+  "homepage": "https://github.com/baiye-gift/antigravity-context-viewer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baiye-gift/antigravity-context-viewer.git"
+  },
+  "suggestedPrompts": [
+    "打开 Context Viewer 面板查看当前会话上下文用量",
+    "分析当前会话的上下文窗口占用与缓存命中率",
+    "检查当前上下文是否接近上限并需要 /compact"
+  ]
+}

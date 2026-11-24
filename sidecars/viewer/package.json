@@ -1,0 +1,6 @@
+{
+  "name": "context_viewer_sidecar",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Native Context Viewer sidecar for Google Antigravity"
+}
