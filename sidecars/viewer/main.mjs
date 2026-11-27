@@ -51,6 +51,22 @@ function weekTokensFromSnapshot(snap) {
   return (w.inputTokens || 0) + (w.cacheReadTokens || 0) + (w.outputTokens || 0);
 }
 
+function jsonNoStore(obj) {
+  return new Response(JSON.stringify(obj), {
+    contentType: 'application/json; charset=utf-8',
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+  });
+}
+
+let lastQuotaInputs = { preferredModels: [], weekTokens: 0 };
+
+function quotaSignature(quota) {
+  if (!quota?.available || !quota?.active) return 'none';
+  const fh = quota.active.fiveHour || {};
+  const wk = quota.active.weekly || {};
+  return `${fh.pct ?? ''}:${fh.resetLabel ?? ''}:${wk.pct ?? ''}:${wk.resetLabel ?? ''}`;
+}
+
 function spawnHud(forceShow = false) {
   if (shuttingDown || !hudPort || !existsSync(hudScriptPath)) {
     return { launched: false, reason: 'unavailable' };
@@ -176,21 +192,52 @@ app.api(
   async (data) => {
     const conv = data?.conversationId || app.config.conversationId || '';
     const forceQuota = data?.refresh === '1';
-    const etag = forceQuota ? '' : (typeof data?.etag === 'string' ? data.etag : '');
-    const snap = buildSnapshot(conv, etag);
+    const rawEtag = forceQuota ? '' : (typeof data?.etag === 'string' ? data.etag : '');
+    const [snapEtag = '', prevQuotaSig = ''] = rawEtag.split('||');
+
+    let snap = buildSnapshot(conv, snapEtag);
     if (snap.unchanged) {
-      return snap;
+      const quota = await getQuotaSnapshot({
+        preferredModels: lastQuotaInputs.preferredModels,
+        weekTokens: lastQuotaInputs.weekTokens,
+        force: forceQuota,
+      });
+      const qSig = quotaSignature(quota);
+      if (prevQuotaSig && qSig === prevQuotaSig) {
+        return jsonNoStore({
+          unchanged: true,
+          etag: `${snap.etag}||${qSig}`,
+        });
+      }
+      snap = buildSnapshot(conv, '');
+      const weekTokens = weekTokensFromSnapshot(snap);
+      const preferredModels = preferredModelsFromSteps(snap.current?.steps);
+      lastQuotaInputs = { preferredModels, weekTokens };
+      const freshQuota = await getQuotaSnapshot({
+        preferredModels,
+        weekTokens,
+        force: false,
+      });
+      return jsonNoStore({
+        ...snap,
+        etag: `${snap.etag}||${quotaSignature(freshQuota)}`,
+        quota: freshQuota,
+      });
     }
+
     const weekTokens = weekTokensFromSnapshot(snap);
+    const preferredModels = preferredModelsFromSteps(snap.current?.steps);
+    lastQuotaInputs = { preferredModels, weekTokens };
     const quota = await getQuotaSnapshot({
-      preferredModels: preferredModelsFromSteps(snap.current?.steps),
+      preferredModels,
       weekTokens,
       force: forceQuota,
     });
-    return {
+    return jsonNoStore({
       ...snap,
+      etag: `${snap.etag}||${quotaSignature(quota)}`,
       quota,
-    };
+    });
   },
   'GET'
 );
@@ -201,14 +248,16 @@ app.api(
     const conv = data?.conversationId || app.config.conversationId || '';
     const snap = buildSnapshot(conv);
     const weekTokens = weekTokensFromSnapshot(snap);
+    const preferredModels = preferredModelsFromSteps(snap.current?.steps);
+    lastQuotaInputs = { preferredModels, weekTokens };
     const quota = await getQuotaSnapshot({
-      preferredModels: preferredModelsFromSteps(snap.current?.steps),
+      preferredModels,
       weekTokens,
       force: data?.refresh === '1',
     });
     const steps = snap.current?.steps || [];
     const lastStep = steps.length ? steps[steps.length - 1] : null;
-    return {
+    return jsonNoStore({
       current: snap.current
         ? {
             conversationId: snap.current.conversationId,
@@ -227,7 +276,7 @@ app.api(
         : null,
       weekTokens,
       quota,
-    };
+    });
   },
   'GET'
 );

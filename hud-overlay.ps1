@@ -284,12 +284,16 @@ function Get-HudData {
     if (-not [string]::IsNullOrWhiteSpace($ApiUrl)) {
         try {
             $url = $ApiUrl
+            $sep = if ($url.Contains('?')) { '&' } else { '?' }
+            $ts = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
             if ($ForceRefresh) {
-                $sep = if ($url.Contains('?')) { '&' } else { '?' }
-                $url = "${url}${sep}refresh=1"
+                $url = "${url}${sep}refresh=1&_ts=${ts}"
+            } else {
+                $url = "${url}${sep}_ts=${ts}"
             }
             $wc = New-Object System.Net.WebClient
             $wc.Encoding = [System.Text.Encoding]::UTF8
+            $wc.CachePolicy = New-Object System.Net.Cache.RequestCachePolicy([System.Net.Cache.RequestCacheLevel]::NoCacheNoStore)
             try {
                 $raw = $wc.DownloadString($url)
                 if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -1138,7 +1142,8 @@ try {
             # Top-Center Dynamic Island Summary
             $wkWord = U '\u5468'
             $fhPart = if ($qAvail -and $fiveResetText -ne (U '\u6ee1\u989d')) { "5h $fivePctText ($fiveResetText)" } else { "5h $fivePctText" }
-            $tcSummary.Text = "$(Format-Tokens $ctxTok) ($($ctxPctRaw.ToString('F0'))%)  |  $fhPart  |  $wkWord $wkPctText"
+            $wkPart = if ($qAvail -and $null -ne $wk -and $null -ne $wk.pct -and $wkResetText) { "$wkWord $wkPctText ($wkResetText)" } else { "$wkWord $wkPctText" }
+            $tcSummary.Text = "$(Format-Tokens $ctxTok) ($($ctxPctRaw.ToString('F0'))%)  |  $fhPart  |  $wkPart"
 
             # Curated Drawer
             if ($null -ne $cur) {
@@ -1200,7 +1205,9 @@ try {
                     $tbVal.FontSize = 9.5
                     $tbVal.Foreground = $mutedBrush
                     $mr = if ($m.fiveHour -and $m.fiveHour.resetLabel) { " $($m.fiveHour.resetLabel)" } else { '' }
-                    $mw = if ($m.weekly -and ($null -ne $m.weekly.pct)) { "$($m.weekly.pct)%" } else { U '\u5145\u8db3' }
+                    $mw = if ($m.weekly -and ($null -ne $m.weekly.pct)) {
+                        if ($m.weekly.resetLabel) { "$($m.weekly.pct)% $($m.weekly.resetLabel)" } else { "$($m.weekly.pct)%" }
+                    } else { U '\u5145\u8db3' }
                     $tbVal.Text = "$($mfVal.ToString('F0'))%$mr | $mw"
                     [System.Windows.Controls.Grid]::SetColumn($tbVal, 2)
 

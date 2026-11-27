@@ -1213,7 +1213,10 @@ html, body {
     const wk = q.active.weekly || {};
     const fhClass = `is-${quotaLevelClass(fh.pct)}`;
     const fhReset = fh.resetLabel ? `(${fh.resetLabel})` : '';
-    const wkLabel = wk.pct !== null && wk.pct !== undefined ? `${wk.pct}%` : '充足';
+    const hasWkPct = wk.pct !== null && wk.pct !== undefined;
+    const wkLabel = hasWkPct
+      ? `${wk.pct}%${wk.resetLabel ? ` (${wk.resetLabel})` : ''}`
+      : '充足';
     const wkClass = `is-${quotaLevelClass(wk.pct)}`;
     const wkTitle = wk.resetLabel ? `周额度 (${wk.resetLabel})` : '周额度';
     return `
@@ -1398,12 +1401,17 @@ html, body {
     const fhClass = quotaLevelClass(fh.pct);
     const wkClass = quotaLevelClass(wk.pct);
     const wkDisplay = wk.pct !== null && wk.pct !== undefined ? `${wk.pct}%` : '充足';
+    const wkNote = wk.pct !== null && wk.pct !== undefined
+      ? (wk.resetLabel ? `刷新: ${wk.resetLabel}` : '周配额可用')
+      : (wk.resetLabel || '未触发周限');
 
     const modelRows = (q.models || [])
       .map((m) => {
         const mf = m.fiveHour?.pct !== undefined ? `${m.fiveHour.pct}%` : '--';
         const mr = m.fiveHour?.resetLabel || '满额';
-        const mw = m.weekly?.pct !== null && m.weekly?.pct !== undefined ? `${m.weekly.pct}%` : (m.weekly?.resetLabel || '充足');
+        const mw = m.weekly?.pct !== null && m.weekly?.pct !== undefined
+          ? `${m.weekly.pct}%${m.weekly.resetLabel ? ` (${m.weekly.resetLabel})` : ''}`
+          : (m.weekly?.resetLabel || '充足');
         return `
           <tr>
             <td>${esc(m.label)}</td>
@@ -1425,14 +1433,14 @@ html, body {
         <div class="kpi-card">
           <div class="kpi-label">周额度（Weekly）</div>
           <div class="kpi-value mono ${wkClass}">${esc(wkDisplay)}</div>
-          <div class="kpi-note mono">${esc(wk.resetLabel || '未触发周限')}</div>
+          <div class="kpi-note mono">${esc(wkNote)}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
           <span class="card-title">各模型额度明细</span>
-          <span class="card-sub mono">GetUserStatus</span>
+          <span class="card-sub mono">RetrieveUserQuotaSummary</span>
         </div>
         <div class="table-wrap">
           <table class="tbl">
